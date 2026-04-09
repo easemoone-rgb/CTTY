@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>冲天投篮大师</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+            background: #0a0a0f;
+        }
+        
+        #gameCanvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        /* 盾牌Logo */
+        #logo {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            font-weight: bold;
+            color: #ff3333;
+            text-shadow: 0 0 20px #ff3333, 0 0 40px #ff0000;
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 60px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        .hud-item {
+            color: #fff;
+            font-size: 16px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+        
+        #combo {
+            color: #ffcc00;
+            text-shadow: 0 0 15px #ffcc00;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        /* 得分飘字容器 */
+        #scorePopups {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 150;
+        }
+        
+        .score-popup {
+            position: absolute;
+            font-size: 28px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 20px currentColor;
+            animation: scoreFloat 1s ease-out forwards;
+            pointer-events: none;
+        }
+        
+        @keyframes scoreFloat {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-80px) scale(1.5); opacity: 0; }
+        }
+        
+        /* 蓄力指示 - 屏幕下方篮球附近 */
+        #powerBar {
+            position: absolute;
+            bottom: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 180px;
+            height: 18px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid #555;
+            border-radius: 9px;
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 100;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+        
+        #powerFill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00ff00, #00ddff, #ffcc00, #ff6600);
+            border-radius: 7px;
+            transition: width 0.05s linear;
+            box-shadow: 0 0 15px rgba(255,150,0,0.6);
+        }
+        
+        #powerText {
+            position: absolute;
+            bottom: 155px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: 15px;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 100;
+            white-space: nowrap;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+        
+        /* 方向指示 - 屏幕下方，好看的样式 */
+        #directionHint {
+            position: absolute;
+            bottom: 180px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: 28px;
+            font-weight: bold;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.15s;
+            text-shadow: 0 0 20px currentColor, 0 0 40px currentColor;
+        }
+        
+        #directionHint .arrow {
+            display: inline-block;
+            animation: arrowPulse 0.6s ease-in-out infinite;
+        }
+        
+        @keyframes arrowPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+        
+        /* 开始/结束界面 */
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+        
+        #overlay.hidden { display: none; }
+        
+        .title {
+            font-size: 36px;
+            font-weight: bold;
+            color: #ff3333;
+            text-shadow: 0 0 30px #ff3333;
+            margin-bottom: 20px;
+        }
+        
+        .subtitle {
+            font-size: 16px;
+            color: #aaa;
+            margin-bottom: 40px;
+        }
+        
+        .btn {
+            padding: 15px 50px;
+            font-size: 18px;
+            color: #fff;
+            background: linear-gradient(135deg, #ff3333, #cc0000);
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            margin: 10px;
+            box-shadow: 0 0 20px rgba(255,50,50,0.5);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 0 30px rgba(255,50,50,0.8);
+        }
+        
+        .mode-select {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .mode-btn {
+            padding: 12px 40px;
+            font-size: 16px;
+            color: #fff;
+            background: rgba(255,50,50,0.2);
+            border: 2px solid #ff3333;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .mode-btn:hover, .mode-btn:active {
+            background: rgba(255,50,50,0.4);
+            box-shadow: 0 0 15px rgba(255,50,50,0.5);
+        }
+        
+        .final-score {
+            font-size: 60px;
+            color: #ffcc00;
+            text-shadow: 0 0 30px #ffcc00;
+            margin: 20px 0;
+        }
+        
+        .stats {
+            color: #888;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+        
+        /* 道具栏 */
+        #itemBar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 100;
+            pointer-events: auto;
+        }
+        
+        .item {
+            width: 50px;
+            height: 50px;
+            background: rgba(30, 30, 40, 0.9);
+            border: 3px solid #555;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            position: relative;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.2s ease;
+        }
+        
+        .item:active {
+            transform: scale(0.95);
+        }
+        
+        .item-count {
+            position: absolute;
+            bottom: -6px;
+            right: -6px;
+            background: #ff3333;
+            color: #fff;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+        
+        /* 道具选中效果 - 明显的高亮边框 */
+        .item.selected {
+            border-color: #ffcc00;
+            box-shadow: 0 0 20px #ffcc00, 0 0 40px rgba(255, 204, 0, 0.5);
+            transform: scale(1.1);
+            animation: selectedPulse 0.8s ease-in-out infinite;
+        }
+        
+        @keyframes selectedPulse {
+            0%, 100% { 
+                box-shadow: 0 0 20px #ffcc00, 0 0 40px rgba(255, 204, 0, 0.5);
+            }
+            50% { 
+                box-shadow: 0 0 30px #ffcc00, 0 0 60px rgba(255, 204, 0, 0.7);
+            }
+        }
+        
+        /* 选中时的图标放大效果 */
+        .item.selected::after {
+            content: '✓';
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ffcc00;
+            color: #000;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            box-shadow: 0 0 10px #ffcc00;
+        }
+        
+        /* 瞄准线 */
+        #aimLine {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0;
+            transition: opacity 0.1s ease;
+        }
+        
+        /* 提示 */
+        #hint {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.5);
+            font-size: 14px;
+            z-index: 100;
+            pointer-events: none;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        
+        /* 能量条 */
+        #energyBar {
+            position: absolute;
+            bottom: 40px;
+            left: 15px;
+            width: 8px;
+            height: 100px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid #444;
+            border-radius: 4px;
+            overflow: hidden;
+            z-index: 100;
+        }
+        
+        #energyFill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 0%;
+            background: linear-gradient(0deg, #00aaff, #00ffff);
+            box-shadow: 0 0 10px #00ffff;
+            transition: height 0.3s;
+        }
+        
+        /* 道具说明 */
+        #itemHint {
+            position: absolute;
+            bottom: 70px;
+            left: 35px;
+            color: rgba(255,255,255,0.5);
+            font-size: 10px;
+            z-index: 100;
+            pointer-events: none;
+            text-align: left;
+            line-height: 1.4;
+        }
+        
+        /* 返回主页按钮 - 冲天体育风格 */
+        #homeBtn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%);
+            border: 2px solid #ff3333;
+            border-radius: 10px;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 100;
+            pointer-events: auto;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 10px rgba(255, 50, 50, 0.3);
+        }
+        
+        #homeBtn:hover, #homeBtn:active {
+            background: linear-gradient(135deg, #ff3333 0%, #cc0000 100%);
+            border-color: #ff6666;
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(255, 50, 50, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="logo">🏀 冲天投篮大师 ⚡</div>
+    
+    <div id="hud">
+        <div class="hud-item">⏱️ <span id="timer">60</span><span id="timerUnit">秒</span></div>
+        <div class="hud-item">🎯 <span id="score">0</span>分</div>
+        <div class="hud-item" id="combo">🔥 x<span id="comboVal">1</span></div>
+    </div>
+    
+    <div id="scorePopups"></div>
+    
+    <div id="powerBar">
+        <div id="powerFill"></div>
+    </div>
+    <div id="powerText">⚡ 蓄力中...</div>
+    <div id="directionHint">← 按住屏幕上方，球往上飞 →</div>
+    <div id="hint">长按蓄力，松手投出！</div>
+    
+    <div id="itemBar">
+        <div class="item" id="lightningItem">⚡<span class="item-count" id="lightningCount">1</span></div>
+        <div class="item" id="shieldItem">🛡️<span class="item-count" id="shieldCount">0</span></div>
+        <div class="item" id="iceItem">❄️<span class="item-count" id="iceCount">0</span></div>
+    </div>
+    
+    <!-- 返回主页按钮 -->
+    <button id="homeBtn" onclick="showMenu()" title="返回主页">✕</button>
+    
+    <div id="energyBar">
+        <div id="energyFill"></div>
+    </div>
+    <div id="itemHint">
+        ⚡: 必进球<br>
+        🛡️: 5秒护盾<br>
+        ❄️: 冰冻3秒<br>
+        能量满=获得道具
+    </div>
+    
+    <canvas id="aimLine"></canvas>
+    
+    <div id="overlay">
+        <div class="title">🏀 冲天投篮大师 ⚡</div>
+        <div class="subtitle">冲天体育出品</div>
+        <div class="mode-select">
+            <button class="mode-btn" onclick="startGame('classic')">🏆 经典模式 - 60秒限时</button>
+            <button class="mode-btn" onclick="startGame('endless')">🧘 无尽模式 - 挑战连击</button>
+            <button class="mode-btn" onclick="startGame('target')">🎯 目标模式 - 达成100分</button>
+        </div>
+    </div>
+    
+    <div id="gameOver" class="hidden" style="display:none;">
+        <div id="overlay">
+            <div class="title">🏆 游戏结束</div>
+            <div class="final-score" id="finalScore">0</div>
+            <div class="stats" id="stats1"></div>
+            <div class="stats" id="stats2"></div>
+            <div class="stats" id="stats3"></div>
+            <button class="btn" onclick="showMenu()">再来一局</button>
+        </div>
+    </div>
+
+    <script>
+    // ==================== 画布设置 ====================
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const aimCanvas = document.getElementById('aimLine');
+    const aimCtx = aimCanvas.getContext('2d');
+    
+    let W, H;
+    
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        // aimLine画布使用固定尺寸覆盖整个视口
+        aimCanvas.width = window.innerWidth;
+        aimCanvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    
+    // ==================== 游戏状态 ====================
+    const game = {
+        mode: 'classic',
+        state: 'menu', // menu, playing, aiming, flying, gameover
+        score: 0,
+        combo: 0,
+        maxCombo: 0,
+        perfectCount: 0,
+        totalShots: 0,
+        timeLeft: 60,
+        power: 0,
+        isCharging: false,
+        chargeStartTime: 0,
+        touchStartX: 0,
+        touchStartY: 0,
+        aimX: 0,
+        aimY: 0,
+        items: { lightning: 1, shield: 0, ice: 0 },
+        energy: 0,
+        targetScore: 100,
+        frozen: false,
+        frozenTimer: 0,
+        shielded: false,
+        shieldedTimer: 0,
+        hoopSpeed: 2
+    };
+    
+    // ==================== 篮球 ====================
+    const ball = {
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        radius: 20,
+        visible: true
+    };
+    
+    // ==================== 篮筐 ====================
+    const hoop = {
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 15,
+        dir: 1,
+        speed: 2
+    };
+    
+    // ==================== 得分圈 ====================
+    const rings = [
+        { radius: 15, color: '#ffdd00', points: 5, name: 'PERFECT!' },
+        { radius: 35, color: '#ff3333', points: 3, name: 'GREAT!' },
+        { radius: 55, color: '#ffffff', points: 1, name: 'OK!' }
+    ];
+    
+    // ==================== 粒子系统 ====================
+    let particles = [];
+    
+    function createParticles(x, y, color, count = 20) {
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+            const speed = 3 + Math.random() * 5;
+            particles.push({
+                x, y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                life: 1,
+                color,
+                size: 3 + Math.random() * 4
+            });
+        }
+    }
+    
+    function updateParticles() {
+        particles = particles.filter(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.1;
+            p.life -= 0.02;
+            return p.life > 0;
+        });
+    }
+    
+    function drawParticles() {
+        particles.forEach(p => {
+            ctx.save();
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
+    }
+    
+    // ==================== 星空背景 ====================
+    const stars = [];
+    for (let i = 0; i < 100; i++) {
+        stars.push({
+            x: Math.random(),
+            y: Math.random(),
+            size: 0.5 + Math.random() * 2,
+            twinkle: Math.random() * Math.PI * 2,
+            speed: 0.02 + Math.random() * 0.05
+        });
+    }
+    
+    // 流星
+    let meteors = [];
+    
+    function spawnMeteor() {
+        if (Math.random() < 0.01 && game.state === 'playing') {
+            meteors.push({
+                x: Math.random() * W,
+                y: -50,
+                vx: 2 + Math.random() * 3,
+                vy: 5 + Math.random() * 5,
+                life: 1,
+                trail: []
+            });
+        }
+    }
+    
+    function updateMeteors() {
+        meteors = meteors.filter(m => {
+            m.trail.unshift({ x: m.x, y: m.y });
+            if (m.trail.length > 15) m.trail.pop();
+            m.x += m.vx;
+            m.y += m.vy;
+            m.life -= 0.015;
+            return m.life > 0 && m.y < H + 50;
+        });
+    }
+    
+    function drawBackground() {
+        // 深色渐变背景
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, '#0a0a15');
+        grad.addColorStop(0.5, '#151525');
+        grad.addColorStop(1, '#0f0f1a');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+        
+        // 网格线
+        ctx.strokeStyle = 'rgba(255, 50, 50, 0.05)';
+        ctx.lineWidth = 1;
+        const gridSize = 50;
+        for (let x = 0; x < W; x += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, H);
+            ctx.stroke();
+        }
+        for (let y = 0; y < H; y += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(W, y);
+            ctx.stroke();
+        }
+        
+        // 星星
+        stars.forEach(star => {
+            star.twinkle += star.speed;
+            const brightness = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(star.twinkle));
+            ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+            ctx.beginPath();
+            ctx.arc(star.x * W, star.y * H, star.size, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        
+        // 流星
+        meteors.forEach(m => {
+            // 拖尾
+            m.trail.forEach((t, i) => {
+                const alpha = (1 - i / m.trail.length) * m.life * 0.5;
+                ctx.fillStyle = `rgba(255, 200, 100, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, 2 - i * 0.1, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            // 头部
+            ctx.fillStyle = `rgba(255, 255, 255, ${m.life})`;
+            ctx.beginPath();
+            ctx.arc(m.x, m.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        
+        // 背景闪电
+        if (Math.random() < 0.003) {
+            drawLightning();
+        }
+    }
+    
+    function drawLightning() {
+        const startX = Math.random() * W;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(startX, 0);
+        let x = startX;
+        for (let y = 0; y < H * 0.3; y += 20) {
+            x += (Math.random() - 0.5) * 60;
+            ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+    
+    // ==================== 篮筐绘制 ====================
+    function drawHoop() {
+        const hx = hoop.x;
+        const hy = hoop.y;
+        
+        // 篮板（斜着的白色板）
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#cccccc';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // 篮板 - 从篮筐后方斜向前方
+        ctx.moveTo(hx - 60, hy - 80);
+        ctx.lineTo(hx + 60, hy - 80);
+        ctx.lineTo(hx + 50, hy - 30);
+        ctx.lineTo(hx - 50, hy - 30);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // 篮板上的冲天体育logo（半透明）
+        ctx.save();
+        ctx.globalAlpha = 0.3; // 半透明效果
+        ctx.fillStyle = '#ff3333';
+        ctx.strokeStyle = '#cc0000';
+        ctx.lineWidth = 1.5;
+        
+        // 绘制盾牌外框
+        ctx.beginPath();
+        ctx.moveTo(hx - 25, hy - 70);
+        ctx.lineTo(hx + 25, hy - 70);
+        ctx.lineTo(hx + 25, hy - 45);
+        ctx.lineTo(hx, hy - 35);
+        ctx.lineTo(hx - 25, hy - 45);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // 盾牌内的篮球图案
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(hx, hy - 55, 8, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 篮球纹路
+        ctx.strokeStyle = '#ff3333';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(hx, hy - 55, 7, 3, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(hx, hy - 55, 3, 7, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // 闪电符号
+        ctx.fillStyle = '#ffcc00';
+        ctx.beginPath();
+        ctx.moveTo(hx - 4, hy - 58);
+        ctx.lineTo(hx + 2, hy - 55);
+        ctx.lineTo(hx - 2, hy - 55);
+        ctx.lineTo(hx + 4, hy - 52);
+        ctx.lineTo(hx, hy - 56);
+        ctx.lineTo(hx + 2, hy - 56);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+        
+        // 篮板红色方块标记（移到旁边，不遮挡logo）
+        ctx.fillStyle = '#ff3333';
+        ctx.fillRect(hx - 10, hy - 70, 20, 30);
+        
+        // 篮筐支架（白色支柱）
+        ctx.strokeStyle = '#888888';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(hx - 55, hy - 80);
+        ctx.lineTo(hx - 55, hy + 60);
+        ctx.stroke();
+        
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(hx + 55, hy - 80);
+        ctx.lineTo(hx + 55, hy + 60);
+        ctx.stroke();
+        
+        // 底部横梁
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(hx - 55, hy + 60);
+        ctx.lineTo(hx + 55, hy + 60);
+        ctx.stroke();
+        
+        // 篮筐环（橙红色圆环）
+        ctx.strokeStyle = '#ff6600';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.ellipse(hx, hy - 20, 35, 12, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // 篮筐环高光
+        ctx.strokeStyle = '#ff8833';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(hx, hy - 22, 35, 12, 0, Math.PI, Math.PI * 2);
+        ctx.stroke();
+        
+        // 篮网（白色网格）
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.lineWidth = 1.5;
+        
+        // 垂直网线
+        for (let i = 0; i <= 6; i++) {
+            const startX = hx - 32 + i * 11;
+            ctx.beginPath();
+            ctx.moveTo(startX, hy - 14);
+            ctx.quadraticCurveTo(startX + (i - 3) * 2, hy + 20, hx, hy + 55);
+            ctx.stroke();
+        }
+        
+        // 水平网线
+        for (let j = 0; j < 4; j++) {
+            const y = hy - 10 + j * 18;
+            const width = 30 - j * 6;
+            ctx.beginPath();
+            ctx.ellipse(hx, y, width, 4, 0, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        
+        // 得分圈（围绕篮筐 - 挂在篮筐下方）
+        rings.forEach(ring => {
+            ctx.strokeStyle = ring.color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(hx, hy - 20, ring.radius, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // 圈的发光
+            ctx.shadowColor = ring.color;
+            ctx.shadowBlur = 15;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        });
+        
+        // 冰冻效果
+        if (game.frozen) {
+            ctx.fillStyle = 'rgba(100, 200, 255, 0.3)';
+            ctx.beginPath();
+            ctx.arc(hx, hy - 20, 80, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(100, 200, 255, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            // 冰晶
+            ctx.fillStyle = 'rgba(200, 240, 255, 0.8)';
+            for (let i = 0; i < 6; i++) {
+                const angle = (i / 6) * Math.PI * 2;
+                const cx = hx + Math.cos(angle) * 75;
+                const cy = hy - 20 + Math.sin(angle) * 75;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // 护盾效果
+        if (game.shielded) {
+            ctx.strokeStyle = 'rgba(255, 200, 0, 0.6)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([8, 4]);
+            ctx.beginPath();
+            ctx.arc(hx, hy - 20, 90, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+    }
+    
+    // ==================== 篮球绘制 ====================
+    function drawBall() {
+        if (!ball.visible) return;
+        
+        const bx = ball.x;
+        const by = ball.y;
+        
+        // 篮球本体
+        ctx.fillStyle = '#ff6633';
+        ctx.beginPath();
+        ctx.arc(bx, by, ball.radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 篮球纹路
+        ctx.strokeStyle = '#cc4400';
+        ctx.lineWidth = 2;
+        // 横线
+        ctx.beginPath();
+        ctx.ellipse(bx, by, ball.radius * 0.9, ball.radius * 0.2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        // 竖线
+        ctx.beginPath();
+        ctx.ellipse(bx, by, ball.radius * 0.2, ball.radius * 0.9, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // 高光
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.beginPath();
+        ctx.arc(bx - 5, by - 5, 6, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 阴影
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(bx, by + ball.radius + 5, ball.radius * 0.8, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    // ==================== 瞄准线 ====================
+    function drawAimLine() {
+        if (!game.isCharging) {
+            aimCtx.clearRect(0, 0, W, H);
+            return;
+        }
+        
+        aimCtx.clearRect(0, 0, W, H);
+        
+        const bx = ball.x;
+        const by = ball.y;
+        
+        // 计算投篮方向
+        const dx = game.touchStartX - bx;
+        const dy = by - game.touchStartY; // 取反，触摸点在上方则 dy > 0
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const powerFactor = 0.3 + (game.power / 100) * 0.7;
+        const baseSpeed = Math.min(dist / 3, 25);
+        const speed = baseSpeed * powerFactor;
+        
+        // 蓄力条颜色
+        const powerRatio = game.power / 100;
+        let trajectoryColor;
+        if (powerRatio < 0.4) {
+            trajectoryColor = '#00ff00';
+        } else if (powerRatio < 0.7) {
+            trajectoryColor = '#ffff00';
+        } else {
+            trajectoryColor = '#ff6600';
+        }
+        
+        // ===== 绘制触摸点标记和方向指示虚线 =====
+        const distToBall = Math.sqrt(Math.pow(game.touchStartX - bx, 2) + Math.pow(game.touchStartY - by, 2));
+        if (distToBall > 30) {
+            // 触摸点标记（手指位置）
+            aimCtx.fillStyle = 'rgba(255, 200, 0, 0.9)';
+            aimCtx.beginPath();
+            aimCtx.arc(game.touchStartX, game.touchStartY, 12, 0, Math.PI * 2);
+            aimCtx.fill();
+            aimCtx.fillStyle = '#fff';
+            aimCtx.beginPath();
+            aimCtx.arc(game.touchStartX, game.touchStartY, 6, 0, Math.PI * 2);
+            aimCtx.fill();
+            
+            // 从触摸点到球的虚线 - 只保留方向指示
+            aimCtx.strokeStyle = 'rgba(255, 200, 0, 0.6)';
+            aimCtx.lineWidth = 3;
+            aimCtx.setLineDash([12, 8]);
+            aimCtx.beginPath();
+            aimCtx.moveTo(game.touchStartX, game.touchStartY);
+            aimCtx.lineTo(bx, by);
+            aimCtx.stroke();
+            aimCtx.setLineDash([]);
+        }
+        
+        // ===== 绘制蓄力条（在触摸点侧边，竖向显示）=====
+        const touchX = game.touchStartX;
+        const touchY = game.touchStartY;
+        const barWidth = 18;
+        const barHeight = 100;
+        // 蓄力条放在触摸点右侧
+        const barX = touchX + 30;
+        const barY = touchY - barHeight / 2;
+        
+        // 蓄力条背景（圆形边框）
+        aimCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        aimCtx.strokeStyle = '#555';
+        aimCtx.lineWidth = 2;
+        aimCtx.beginPath();
+        aimCtx.roundRect(barX, barY, barWidth, barHeight, 9);
+        aimCtx.fill();
+        aimCtx.stroke();
+        
+        // 蓄力条填充（从下往上）
+        const gradient = aimCtx.createLinearGradient(0, barY + barHeight, 0, barY);
+        gradient.addColorStop(0, '#00ff00');
+        gradient.addColorStop(0.5, '#00ddff');
+        gradient.addColorStop(1, '#ff6600');
+        aimCtx.fillStyle = gradient;
+        aimCtx.shadowColor = trajectoryColor;
+        aimCtx.shadowBlur = 15;
+        aimCtx.beginPath();
+        aimCtx.roundRect(barX + 3, barY + barHeight - 3 - (barHeight - 6) * (game.power / 100), barWidth - 6, (barHeight - 6) * (game.power / 100), 6);
+        aimCtx.fill();
+        aimCtx.shadowBlur = 0;
+        
+        // 蓄力百分比文字（在蓄力条上方）
+        aimCtx.fillStyle = '#fff';
+        aimCtx.font = 'bold 14px Microsoft YaHei';
+        aimCtx.textAlign = 'center';
+        aimCtx.shadowColor = 'rgba(0,0,0,0.5)';
+        aimCtx.shadowBlur = 4;
+        aimCtx.fillText('⚡ ' + Math.floor(game.power) + '%', barX + barWidth / 2, barY - 10);
+        aimCtx.shadowBlur = 0;
+        
+        // 满格提示
+        if (game.power >= 95) {
+            aimCtx.fillStyle = '#ff3333';
+            aimCtx.font = 'bold 16px Microsoft YaHei';
+            aimCtx.textAlign = 'left';
+            aimCtx.shadowColor = '#ff3333';
+            aimCtx.shadowBlur = 10;
+            aimCtx.fillText('💥 满！', barX + barWidth + 8, barY + barHeight / 2 + 5);
+            aimCtx.shadowBlur = 0;
+        }
+        
+        // ===== 方向提示箭头（在触摸点旁边）=====
+        aimCtx.font = '22px Arial';
+        aimCtx.textAlign = 'center';
+        
+        // 计算投球方向
+        const angle = Math.atan2(-dy, dx); // 投球角度
+        let directionText = '';
+        let arrowColor = '#fff';
+        
+        if (Math.abs(dx) < 30) {
+            // 几乎垂直向上
+            directionText = '⬆';
+            arrowColor = '#00ff00';
+        } else if (dx < -30) {
+            // 往左飞
+            directionText = '↖';
+            arrowColor = '#ffcc00';
+        } else if (dx > 30) {
+            // 往右飞
+            directionText = '↗';
+            arrowColor = '#ffcc00';
+        }
+        
+        // 绘制方向提示（在蓄力条上方）
+        if (directionText) {
+            aimCtx.fillStyle = arrowColor;
+            aimCtx.shadowColor = arrowColor;
+            aimCtx.shadowBlur = 15;
+            aimCtx.fillText(directionText, touchX, touchY - 35);
+            aimCtx.shadowBlur = 0;
+        }
+    }
+    
+    // ==================== 蓄力条 ====================
+    function updatePowerBar() {
+        const hint = document.getElementById('hint');
+        const powerBar = document.getElementById('powerBar');
+        const powerText = document.getElementById('powerText');
+        const directionHint = document.getElementById('directionHint');
+        const aimCanvas = document.getElementById('aimLine');
+        
+        if (game.isCharging) {
+            const elapsed = Date.now() - game.chargeStartTime;
+            // 循环累计：每1.5秒一个周期
+            game.power = (elapsed % 1500) / 1500 * 100;
+            // 隐藏旧的HTML元素（蓄力条现在在canvas上绘制）
+            hint.style.opacity = '0';
+            powerBar.style.opacity = '0';
+            powerText.style.opacity = '0';
+            directionHint.style.opacity = '0';
+            // 显示aimLine画布
+            aimCanvas.style.opacity = '1';
+        } else {
+            hint.style.opacity = '1';
+            powerBar.style.opacity = '0';
+            powerText.style.opacity = '0';
+            directionHint.style.opacity = '0';
+            // 隐藏aimLine画布
+            aimCanvas.style.opacity = '0';
+        }
+    }
+    
+    // ==================== 得分飘字 ====================
+    function showScorePopup(x, y, points, text, color) {
+        const popup = document.createElement('div');
+        popup.className = 'score-popup';
+        popup.style.left = x + 'px';
+        popup.style.top = y + 'px';
+        popup.style.color = color;
+        popup.innerHTML = `+${points} ${text}`;
+        document.getElementById('scorePopups').appendChild(popup);
+        
+        setTimeout(() => popup.remove(), 1000);
+    }
+    
+    // ==================== 投篮逻辑 ====================
+    function shootBall() {
+        // 方向：触摸点在球的上方，球就往上飞（canvas y轴向下，所以要取反）
+        const dx = game.touchStartX - ball.x;
+        const dy = ball.y - game.touchStartY; // 取反！触摸点在上方时 dy > 0
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        
+        // 基础速度基于触摸距离，适度增加
+        const baseSpeed = Math.min(dist / 2.5, 30);
+        // 使用蓄力条来调整最终速度：蓄力越满，速度越快
+        const powerFactor = 0.35 + (game.power / 100) * 0.65; // 35%~100%的速度因子
+        const speed = baseSpeed * powerFactor;
+        
+        ball.vx = (dx / dist) * speed;
+        ball.vy = -(dy / dist) * speed; // vy 为负表示往上
+        
+        game.state = 'flying';
+        game.totalShots++;
+        
+        // 使用闪电球道具
+        if (game.items.lightning > 0 && document.getElementById('lightningItem').classList.contains('selected')) {
+            game.items.lightning--;
+            updateItemUI();
+            document.getElementById('lightningItem').classList.remove('selected');
+            
+            // 闪电球特效
+            createParticles(ball.x, ball.y, '#ffff00', 30);
+            setTimeout(() => {
+                if (game.state === 'flying') {
+                    // 直接进球
+                    ball.x = hoop.x;
+                    ball.y = hoop.y + 50;
+                    ball.vx = 0;
+                    ball.vy = 5;
+                }
+            }, 100);
+        }
+    }
+    
+    // ==================== 碰撞检测 ====================
+    function checkCollision() {
+        const bx = ball.x;
+        const by = ball.y;
+        const hx = hoop.x;
+        // 篮筐环在 hoop.y - 20 的位置
+        const hy = hoop.y - 20;
+        
+        // 检测是否在篮筐范围内
+        const dx = bx - hx;
+        const dy = by - hy;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        
+        // 得分圈检测
+        let points = 0;
+        let hitRing = null;
+        
+        for (const ring of rings) {
+            if (dist < ring.radius) {
+                points = ring.points;
+                hitRing = ring;
+                break;
+            }
+        }
+        
+        if (points > 0) {
+            // 进球！
+            const comboMultiplier = Math.min(1 + game.combo * 0.25, 3.5);
+            const finalPoints = Math.floor(points * comboMultiplier);
+            
+            game.score += finalPoints;
+            game.combo++;
+            game.perfectCount++;
+            if (game.combo > game.maxCombo) game.maxCombo = game.combo;
+            
+            // 能量：每次进球增加20%，每5球就获得道具
+            game.energy += 20;
+            if (game.energy >= 100) {
+                awardRandomItem();
+            }
+            
+            // 特效
+            createParticles(bx, by, hitRing.color, 30);
+            showScorePopup(bx, by - 50, finalPoints, hitRing.name, hitRing.color);
+            
+            // 得分圈闪烁
+            flashRing(hitRing);
+            
+            // 增加难度
+            game.hoopSpeed = Math.min(game.hoopSpeed + 0.2, 6);
+            
+            resetBall();
+            return true;
+        }
+        
+        // 没进 - 检测是否飞出了屏幕
+        if (by < -50 || by > H + 50 || bx < -50 || bx > W + 50) {
+            // 没进球
+            if (!game.shielded) {
+                game.combo = 0;
+            }
+            createParticles(bx, by, '#666', 15);
+            resetBall();
+            return false;
+        }
+        
+        return false;
+    }
+    
+    function flashRing(ring) {
+        const originalColor = ring.color;
+        ring.color = '#ffffff';
+        setTimeout(() => ring.color = originalColor, 100);
+    }
+    
+    function awardRandomItem() {
+        const items = ['shield', 'ice'];
+        const item = items[Math.floor(Math.random() * items.length)];
+        game.items[item]++;
+        game.energy = 0;
+        updateItemUI();
+        
+        // 特效
+        createParticles(hoop.x, hoop.y, '#00ffff', 30);
+        
+        // 显示获得道具提示
+        const itemNames = { shield: '🛡️ 护盾', ice: '❄️ 冰冻' };
+        showScorePopup(hoop.x, hoop.y - 80, 0, itemNames[item] + ' 已获得!', '#00ffff');
+    }
+    
+    function resetBall() {
+        ball.x = W / 2;
+        ball.y = H - 100;
+        ball.vx = 0;
+        ball.vy = 0;
+        ball.visible = true;
+        game.state = 'playing';
+        game.power = 0;
+    }
+    
+    // ==================== 道具使用 ====================
+    function useItem(type) {
+        if (game.state !== 'playing') return;
+        
+        if (type === 'shield' && game.items.shield > 0) {
+            game.items.shield--;
+            game.shielded = true;
+            game.shieldedTimer = 5;
+            updateItemUI();
+            // 使用道具时清除选中状态
+            document.getElementById('shieldItem').classList.remove('selected');
+            createParticles(W/2, H - 80, '#ffcc00', 20);
+        }
+        
+        if (type === 'ice' && game.items.ice > 0) {
+            game.items.ice--;
+            game.frozen = true;
+            game.frozenTimer = 3;
+            updateItemUI();
+            // 使用道具时清除选中状态
+            document.getElementById('iceItem').classList.remove('selected');
+            createParticles(W/2, H - 80, '#00ccff', 20);
+        }
+    }
+    
+    function updateItemUI() {
+        document.getElementById('lightningCount').textContent = game.items.lightning;
+        document.getElementById('shieldCount').textContent = game.items.shield;
+        document.getElementById('iceCount').textContent = game.items.ice;
+        document.getElementById('energyFill').style.height = game.energy + '%';
+    }
+    
+    // ==================== 游戏逻辑 ====================
+    function updateHoop() {
+        if (!game.frozen) {
+            hoop.x += hoop.dir * hoop.speed;
+            // 篮筐宽度约70，加上边距
+            if (hoop.x > W - 80) {
+                hoop.x = W - 80;
+                hoop.dir = -1;
+            }
+            if (hoop.x < 80) {
+                hoop.x = 80;
+                hoop.dir = 1;
+            }
+        }
+        
+        // 更新道具计时器
+        if (game.frozenTimer > 0) {
+            game.frozenTimer -= 1/60;
+        }
+    }
+    
+    function updateBall() {
+        if (game.state !== 'flying') return;
+        
+        ball.x += ball.vx;
+        ball.y += ball.vy;
+        ball.vy += 0.3; // 重力
+        
+        checkCollision();
+    }
+    
+    function updateHUD() {
+        document.getElementById('score').textContent = game.score;
+        
+        const timerEl = document.getElementById('timer');
+        const timerUnitEl = document.getElementById('timerUnit');
+        
+        if (game.mode === 'endless') {
+            // 无尽模式显示∞
+            timerEl.textContent = '∞';
+            timerUnitEl.textContent = '';
+        } else if (game.mode === 'target') {
+            // 目标模式显示当前分数/目标分数
+            timerEl.textContent = game.score + '/' + game.targetScore;
+            timerUnitEl.textContent = '';
+        } else {
+            // 经典模式显示剩余秒数
+            timerEl.textContent = Math.ceil(game.timeLeft);
+            timerUnitEl.textContent = '秒';
+        }
+        
+        const comboEl = document.getElementById('combo');
+        const comboVal = document.getElementById('comboVal');
+        if (game.combo > 1) {
+            comboEl.style.opacity = '1';
+            comboVal.textContent = (1 + game.combo * 0.25).toFixed(1);
+        } else {
+            comboEl.style.opacity = '0';
+        }
+    }
+    
+    // ==================== 触控输入 ====================
+    function handleTouchStart(e) {
+        if (game.state !== 'playing') return;
+        e.preventDefault();
+        
+        const touch = e.touches[0];
+        game.isCharging = true;
+        game.chargeStartTime = Date.now();
+        game.touchStartX = touch.clientX;
+        game.touchStartY = touch.clientY;
+        game.power = 0;
+    }
+    
+    function handleTouchMove(e) {
+        if (!game.isCharging) return;
+        e.preventDefault();
+        
+        const touch = e.touches[0];
+        game.touchStartX = touch.clientX;
+        game.touchStartY = touch.clientY;
+    }
+    
+    function handleTouchEnd(e) {
+        if (!game.isCharging) return;
+        e.preventDefault();
+        
+        game.isCharging = false;
+        
+        // 移除蓄力满锁定逻辑，现在蓄力满后循环累计，正常投球
+        if (game.power > 10) {
+            shootBall();
+        }
+        
+        game.power = 0;
+    }
+    
+    // 触屏事件绑定
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    
+    // 鼠标支持
+    canvas.addEventListener('mousedown', (e) => {
+        if (game.state !== 'playing') return;
+        game.isCharging = true;
+        game.chargeStartTime = Date.now();
+        game.touchStartX = e.clientX;
+        game.touchStartY = e.clientY;
+        game.power = 0;
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+        if (!game.isCharging) return;
+        game.touchStartX = e.clientX;
+        game.touchStartY = e.clientY;
+    });
+    
+    canvas.addEventListener('mouseup', (e) => {
+        if (!game.isCharging) return;
+        game.isCharging = false;
+        
+        // 移除蓄力满锁定逻辑
+        if (game.power > 10) {
+            shootBall();
+        }
+        
+        game.power = 0;
+    });
+    
+    // 道具点击 - 使用立即执行函数避免重复绑定
+    document.getElementById('lightningItem').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (game.items.lightning > 0 && game.state === 'playing') {
+            const el = document.getElementById('lightningItem');
+            // 切换选中状态
+            if (el.classList.contains('selected')) {
+                el.classList.remove('selected');
+            } else {
+                el.classList.add('selected');
+                // 取消其他道具的选中状态
+                document.getElementById('shieldItem').classList.remove('selected');
+                document.getElementById('iceItem').classList.remove('selected');
+            }
+        }
+    });
+    
+    document.getElementById('shieldItem').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (game.items.shield > 0 && game.state === 'playing') {
+            useItem('shield');
+            // 显示选中效果
+            const el = document.getElementById('shieldItem');
+            el.classList.add('selected');
+            // 提示护盾已激活
+            showScorePopup(W/2, H - 150, 0, '🛡️ 护盾已激活！', '#ffcc00');
+        }
+    });
+    
+    document.getElementById('iceItem').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (game.items.ice > 0 && game.state === 'playing') {
+            useItem('ice');
+            // 显示选中效果
+            const el = document.getElementById('iceItem');
+            el.classList.add('selected');
+            // 提示冰冻已激活
+            showScorePopup(W/2, H - 150, 0, '❄️ 冰冻已激活！', '#00ccff');
+        }
+    });
+    
+    // ==================== 游戏流程 ====================
+    function startGame(mode) {
+        game.mode = mode;
+        game.state = 'playing';
+        game.score = 0;
+        game.combo = 0;
+        game.maxCombo = 0;
+        game.perfectCount = 0;
+        game.totalShots = 0;
+        game.timeLeft = mode === 'target' ? 90 : 60;
+        game.energy = 0;
+        game.items = { lightning: 1, shield: 0, ice: 0 };
+        game.hoopSpeed = 2;
+        game.frozen = false;
+        game.shielded = false;
+        
+        hoop.x = W / 2;
+        hoop.y = 180;
+        
+        resetBall();
+        updateItemUI();
+        
+        document.getElementById('overlay').classList.add('hidden');
+        document.getElementById('gameOver').style.display = 'none';
+        document.getElementById('hint').style.opacity = '1';
+        
+        // 开始计时（无尽模式不需要计时器）
+        if (mode !== 'endless') {
+            startTimer();
+        } else {
+            clearInterval(timerInterval);
+        }
+    }
+    
+    let timerInterval;
+    function startTimer() {
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            if (game.state === 'playing' || game.state === 'flying') {
+                game.timeLeft -= 1/60;
+                
+                if (game.mode === 'target' && game.score >= game.targetScore) {
+                    endGame();
+                }
+                
+                if (game.timeLeft <= 0) {
+                    endGame();
+                }
+            }
+        }, 1000/60);
+    }
+    
+    function endGame() {
+        game.state = 'gameover';
+        clearInterval(timerInterval);
+        
+        document.getElementById('finalScore').textContent = game.score;
+        document.getElementById('stats1').textContent = `🎯 投篮次数: ${game.totalShots}`;
+        document.getElementById('stats2').textContent = `🔥 最高连击: x${game.maxCombo}`;
+        document.getElementById('stats3').textContent = `⭐ 完美球: ${game.perfectCount}个`;
+        
+        document.getElementById('gameOver').style.display = 'flex';
+        document.getElementById('overlay').classList.remove('hidden');
+    }
+    
+    function showMenu() {
+        game.state = 'menu';
+        document.getElementById('overlay').classList.remove('hidden');
+        document.getElementById('gameOver').style.display = 'none';
+    }
+    
+    // ==================== 主循环 ====================
+    function gameLoop() {
+        // 清空画布
+        ctx.clearRect(0, 0, W, H);
+        
+        // 绘制背景
+        drawBackground();
+        spawnMeteor();
+        updateMeteors();
+        
+        // 更新游戏对象
+        if (game.state === 'playing' || game.state === 'flying') {
+            updateHoop();
+            updateBall();
+            updateParticles();
+            updatePowerBar();
+            updateHUD();
+        }
+        
+        // 绘制游戏对象
+        drawHoop();
+        drawBall();
+        drawParticles();
+        drawAimLine();
+        
+        requestAnimationFrame(gameLoop);
+    }
+    
+    // ==================== 初始化 ====================
+    function init() {
+        resetBall();
+        hoop.x = W / 2;
+        hoop.y = 180;
+        gameLoop();
+    }
+    
+    init();
+    </script>
+</body>
+</html>
